@@ -1,6 +1,33 @@
 # CarND-Path-Planning-Project
 Self-Driving Car Engineer Nanodegree Program
-   
+ 
+### Reflection
+---
+#### How to generate paths
+
+as shown in the walktrough the path generation was done using the spline library (provided as header file).
+
+the point generation was always a function of velocity variables, which was changed in every itteration depending on the need with a constant 1 m/s² to ensure smooth changes for both acceleration and jerk 
+
+for every itteration the previous planned point (if there was any left) was taken as a base for the planing if there was none the car postion and some estiation to the previous position were taken to ensure path smoothness.
+
+further point were added in a form of spline in the walktrhough it was suggested to use 30,60,90 but this in my code gave an acceleration above the allowed limit,
+so the distance were spread more 45,90,135 to give a curve with smother changes to reduce sudden jumps
+
+
+the velocity was control in the begining of the code to ensure minimun accelration and jerk
+
+a very simple form of state machine was implemented to request lane change if there is a car ahead 
+(a suggested point was to check for the velocity so we can do tracking if it is 5% lower it can trakced as it would be a lower cost then lane change)
+
+another state machine take the request and check if it possible or not to so the lane change based on the distance behind or in front depending on the postion of the car and proceed with the lane change if there is enough space for the chage
+
+it was spreated into two because the first state machine does a loop and only check for cars in the same lane so if detected a close car in the same lane and change the search criteria it would mean we would miss any cars that came in a previous index
+
+possible improvement :
+
+in the last lane if a car is too close and below speed limit we would decelerate till we keep a constant distance that correspond to the breaking distance at this car speed and do velocity tracking while mainting enough braking speed 
+
 ### Simulator.
 You can download the Term3 Simulator which contains the Path Planning Project from the [releases tab (https://github.com/udacity/self-driving-car-sim/releases/tag/T3_v1.2).
 

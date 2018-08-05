@@ -9,6 +9,9 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 
+#include <spline.h>
+
+
 using namespace std;
 
 // for convenience
@@ -200,7 +203,11 @@ int main() {
   	map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+	int lane = 1 ;
+
+	double ref_vel = 45.0;//unit:MPH , chosen to be 90% of allowed speed limit 
+
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy,&lane,ref_vel](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -227,6 +234,8 @@ int main() {
           	double car_yaw = j[1]["yaw"];
           	double car_speed = j[1]["speed"];
 
+						// cout<< car_s << "  " << car_d << endl;
+
           	// Previous path data given to the Planner
           	auto previous_path_x = j[1]["previous_path_x"];
           	auto previous_path_y = j[1]["previous_path_y"];
@@ -242,8 +251,115 @@ int main() {
           	vector<double> next_x_vals;
           	vector<double> next_y_vals;
 
+						#define FOLLOW_LANE_SMOOTH
 
-          	// TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
+						#ifdef STRAIGHT_LINE
+
+						double dist_inc = 0.4;
+    				for(int i = 0; i < 50; i++)
+    		   	{
+       		    next_x_vals.push_back(car_x+(dist_inc*i)*cos(deg2rad(car_yaw)));
+            	next_y_vals.push_back(car_y+(dist_inc*i)*sin(deg2rad(car_yaw)));
+            }
+						#elif defined CIRCLE
+
+						double pos_x;
+            double pos_y;
+            double angle;
+      	    int path_size = previous_path_x.size();
+
+         	  for(int i = 0; i < path_size; i++)
+            {
+              next_x_vals.push_back(previous_path_x[i]);
+              next_y_vals.push_back(previous_path_y[i]);
+            }
+
+            if(path_size == 0)
+            {
+              pos_x = car_x;
+              pos_y = 6;
+              angle = deg2rad(car_yaw);
+            }
+            else
+            {
+              pos_x = previous_path_x[path_size-1];
+              pos_y = previous_path_y[path_size-1];
+
+              double pos_x2 = previous_path_x[path_size-2];
+              double pos_y2 = previous_path_y[path_size-2];
+              angle = atan2(pos_y-pos_y2,pos_x-pos_x2);
+            }
+
+            double dist_inc = 0.4;
+            for(int i = 0; i < 50-path_size; i++)
+         	  {    
+              next_x_vals.push_back(pos_x+(dist_inc)*cos(angle+(i+1)*(pi()/100)));
+              next_y_vals.push_back(pos_y+(dist_inc)*sin(angle+(i+1)*(pi()/100)));
+              pos_x += (dist_inc)*cos(angle+(i+1)*(pi()/100));
+              pos_y += (dist_inc)*sin(angle+(i+1)*(pi()/100));
+         	  }
+
+						#elif defined FOLLOW_LANE
+
+						double dist_inc = 0.4;
+    				for(int i = 0; i < 50; i++)
+    		   	{
+							 double next_s = car_s +( i + 1) * dist_inc ;
+							 double next_d = 6;
+
+							 vector<double> new_xy = getXY( next_s , next_d , map_waypoints_s , map_waypoints_x , map_waypoints_y);
+
+							 next_x_vals.push_back(new_xy[0]);
+            	 next_y_vals.push_back(new_xy[1]);
+            }
+
+						#elif defined FOLLOW_LANE_SMOOTH
+
+						vector<double> ptsx,ptsy;
+
+						int prev_size = previous_path_x.size(); //number of unused path from the previous sent path
+
+						double ref_x = car_x;
+						double ref_y = car_y;
+						double ref_yaw = deg2rad(car_yaw);
+
+
+						if(prev_size < 2)//almost empty state use current car postion as a ref state
+						{
+							//calucate the previous state of the car
+							double prev_car_x = car_x - cos(car_yaw);
+							double prev_car_y = car_y - sin(car_yaw);
+
+							ptsx.push_back(prev_car_x);
+							ptsx.push_back(car_x);
+
+							ptsy.push_back(prev_car_y);
+							ptsy.push_back(car_y);
+
+						}
+						else
+						{
+							ref_x = previous_path_x[prev_size - 1];
+							ref_y = previous_path_y[prev_size - 1];
+							
+							double ref_x_prev = previous_path_x[prev_size - 2];
+							double ref_y_prev = previous_path_y[prev_size - 2];
+
+							ref_yaw = atan2(ref_y -ref_y_prev , ref_x - ref_x_prev);
+
+							ptsx.push_back(ref_x_prev);
+							ptsx.push_back(ref_x);
+
+							ptsy.push_back(ref_y_prev);
+							ptsy.push_back(ref_y);
+
+						}
+
+						#endif
+
+
+
+
           	msgJson["next_x"] = next_x_vals;
           	msgJson["next_y"] = next_y_vals;
 

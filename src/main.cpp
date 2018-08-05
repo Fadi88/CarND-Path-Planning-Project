@@ -464,26 +464,51 @@ int main()
 							{
 								too_close = true;
 								if (lane > 0)
+								{
 									change_lane = true;
+									break;
+								}
 							}
 						}
 					}
-
-					if (too_close)
-						ref_vel -= .224;
-					else if (ref_vel < 45.0)
-						ref_vel += .224;
-
 					if (change_lane)
 					{
+						bool change_possible = true;
+						//check if there is enough space for the lane change
 						for (int i = 0; i < sensor_fusion.size(); i++)
 						{
 							double s = sensor_fusion[i][5];
 							double d = sensor_fusion[i][6];
+							if (d < (2 + 4 * (lane - 1 ) + 2) && d > (2 + 4 * (lane - 1) - 2))
+							{
+								if(s < car_s && car_s - s < 20) //simple model need to use also the speed 
+								{
+									change_possible = false;
+									break;
 
-							if (lane > 0)
-								lane -= 1;
+								}
+								else if ( s > car_s && s - car_s < 20)
+								{
+									change_possible = false;
+									break;
+								}
+							}
 						}
+
+						if (change_possible)
+						{
+							lane -= 1;
+							change_lane = false;
+						}
+					}
+
+					if ( too_close )
+					{
+						ref_vel -= .224 ;
+					}
+					else if (ref_vel < 45.0)
+					{
+						ref_vel += .224;
 					}
 
 					if (prev_size < 2) //almost empty state use current car postion as a ref state
